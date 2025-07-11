@@ -1,0 +1,58 @@
+# Example Terraform variables file for Security Group Compliance Framework
+# Copy this file to terraform.tfvars and update with your values
+
+# Basic Configuration
+environment = "dev"
+project_name = "sg-compliance"
+aws_region = "us-east-1"
+
+# Target AWS accounts to scan (list of account IDs)
+target_accounts = [
+  "123456789012",
+  "987654321098"
+]
+
+# Compliance scanning schedule (CloudWatch Events schedule expression)
+# Examples:
+# - "rate(24 hours)" - Run daily
+# - "rate(12 hours)" - Run twice daily  
+# - "cron(0 9 * * ? *)" - Run daily at 9 AM UTC
+compliance_schedule = "rate(24 hours)"
+
+# Lambda function configuration
+lambda_timeout = 900        # 15 minutes
+lambda_memory_size = 512    # MB
+
+# Framework behavior
+dry_run_mode = true                    # Set to false to enable actual remediation
+enable_automatic_remediation = false  # Set to true to enable automatic remediation
+
+# Notification settings
+notification_email = "security-team@example.com"
+
+# S3 bucket name (optional - will be auto-generated if not provided)
+# s3_bucket_name = "my-sg-compliance-bucket"
+
+# Log retention
+log_retention_days = 30
+
+# KMS key deletion window
+kms_key_deletion_window = 7
+
+# Common tags for all resources
+tags = {
+  Project     = "SecurityGroupCompliance"
+  Environment = "dev"
+  Owner       = "SecurityTeam"
+  ManagedBy   = "Terraform"
+  Purpose     = "SecurityCompliance"
+  CostCenter  = "Security"
+}
+
+# Compliance severity levels configuration
+compliance_severity_levels = {
+  critical = ["0.0.0.0/0", "::/0"]
+  high     = ["unrestricted_ports", "management_ports"]
+  medium   = ["deprecated_protocols", "weak_encryption"]
+  low      = ["missing_description", "untagged_resources"]
+}

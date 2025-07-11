@@ -1,0 +1,9 @@
+# Real-time scanning configuration
+max_operations_per_minute        = 10
+mass_operations_alert_threshold  = 5
+block_suspicious_users          = false
+real_time_scanning_enabled      = true
+immediate_remediation_enabled   = false
+violation_severity_threshold    = "critical"
+
+# ...existing variables...

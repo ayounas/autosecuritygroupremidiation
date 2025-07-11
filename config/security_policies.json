@@ -1,0 +1,420 @@
+{
+  "version": "1.0.0",
+  "last_updated": "2025-07-11T00:00:00Z",
+  "description": "Security Group Compliance Policies for AWS Multi-Account Environment",
+  "metadata": {
+    "author": "Security Team",
+    "framework": "Security Group Compliance Framework",
+    "environment": "production"
+  },
+  "compliance_policies": {
+    "global_rules": {
+      "description": "Rules applied to all security groups across all accounts",
+      "enforce_tagging": true,
+      "required_tags": [
+        "Environment",
+        "Owner",
+        "Purpose",
+        "Project"
+      ],
+      "max_rules_per_sg": 50,
+      "require_descriptions": true,
+      "min_description_length": 10
+    },
+    "prohibited_rules": {
+      "description": "Rules that are strictly prohibited",
+      "inbound": [
+        {
+          "rule_id": "PROHIBIT_ALL_TRAFFIC_HTTP",
+          "description": "Prohibit HTTP traffic from anywhere",
+          "protocol": "tcp",
+          "port_range": "80",
+          "source": "0.0.0.0/0",
+          "severity": "critical",
+          "reason": "HTTP traffic should use HTTPS (port 443)"
+        },
+        {
+          "rule_id": "PROHIBIT_ALL_TRAFFIC_SSH",
+          "description": "Prohibit SSH access from anywhere",
+          "protocol": "tcp",
+          "port_range": "22",
+          "source": "0.0.0.0/0",
+          "severity": "critical",
+          "reason": "SSH access should be restricted to specific IP ranges"
+        },
+        {
+          "rule_id": "PROHIBIT_ALL_TRAFFIC_RDP",
+          "description": "Prohibit RDP access from anywhere",
+          "protocol": "tcp",
+          "port_range": "3389",
+          "source": "0.0.0.0/0",
+          "severity": "critical",
+          "reason": "RDP access should be restricted to specific IP ranges"
+        },
+        {
+          "rule_id": "PROHIBIT_ALL_TRAFFIC_ANY_PORT",
+          "description": "Prohibit all traffic from anywhere on all ports",
+          "protocol": "-1",
+          "port_range": "0-65535",
+          "source": "0.0.0.0/0",
+          "severity": "critical",
+          "reason": "Allowing all traffic from anywhere is a severe security risk"
+        },
+        {
+          "rule_id": "PROHIBIT_IPV6_ALL_TRAFFIC",
+          "description": "Prohibit all IPv6 traffic from anywhere",
+          "protocol": "-1",
+          "port_range": "0-65535",
+          "source": "::/0",
+          "severity": "critical",
+          "reason": "IPv6 traffic from anywhere should be explicitly controlled"
+        }
+      ],
+      "outbound": [
+        {
+          "rule_id": "PROHIBIT_OUTBOUND_ALL_TRAFFIC",
+          "description": "Prohibit outbound traffic to anywhere on all ports",
+          "protocol": "-1",
+          "port_range": "0-65535",
+          "destination": "0.0.0.0/0",
+          "severity": "high",
+          "reason": "Outbound traffic should be restricted to specific destinations"
+        }
+      ]
+    },
+    "restricted_rules": {
+      "description": "Rules that require special approval or are restricted in certain environments",
+      "inbound": [
+        {
+          "rule_id": "RESTRICT_DATABASE_PORTS",
+          "description": "Database ports should only be accessible from application subnets",
+          "protocol": "tcp",
+          "port_ranges": ["3306", "5432", "1433", "1521", "27017"],
+          "allowed_sources": [
+            "10.0.0.0/8",
+            "172.16.0.0/12",
+            "192.168.0.0/16"
+          ],
+          "severity": "high",
+          "environments": ["production", "staging"]
+        },
+        {
+          "rule_id": "RESTRICT_MANAGEMENT_PORTS",
+          "description": "Management ports should be restricted to VPN or bastion hosts",
+          "protocol": "tcp",
+          "port_ranges": ["22", "3389", "5985", "5986"],
+          "allowed_sources": [
+            "10.0.1.0/24",
+            "10.0.2.0/24"
+          ],
+          "severity": "high",
+          "environments": ["production", "staging", "development"]
+        }
+      ]
+    },
+    "allowed_rules": {
+      "description": "Explicitly allowed rules that are considered secure",
+      "inbound": [
+        {
+          "rule_id": "ALLOW_HTTPS_FROM_ALB",
+          "description": "Allow HTTPS traffic from Application Load Balancers",
+          "protocol": "tcp",
+          "port_range": "443",
+          "source_type": "security_group",
+          "source_pattern": ".*-alb-.*",
+          "severity": "info"
+        },
+        {
+          "rule_id": "ALLOW_HTTP_FROM_ALB",
+          "description": "Allow HTTP traffic from Application Load Balancers for redirect",
+          "protocol": "tcp",
+          "port_range": "80",
+          "source_type": "security_group",
+          "source_pattern": ".*-alb-.*",
+          "severity": "info"
+        },
+        {
+          "rule_id": "ALLOW_INTERNAL_VPC_COMMUNICATION",
+          "description": "Allow communication within VPC CIDR ranges",
+          "protocol": "tcp",
+          "port_ranges": ["80", "443", "8080", "8443"],
+          "allowed_sources": [
+            "10.0.0.0/8",
+            "172.16.0.0/12",
+            "192.168.0.0/16"
+          ],
+          "severity": "info"
+        }
+      ]
+    },
+    "environment_specific": {
+      "production": {
+        "description": "Stricter rules for production environment",
+        "additional_restrictions": [
+          {
+            "rule_id": "PROD_NO_EPHEMERAL_PORTS",
+            "description": "Prohibit ephemeral port ranges in production",
+            "protocol": "tcp",
+            "prohibited_port_ranges": ["32768-65535"],
+            "severity": "medium"
+          }
+        ],
+        "required_approvals": ["security_team", "ops_team"]
+      },
+      "staging": {
+        "description": "Moderate restrictions for staging environment",
+        "additional_restrictions": [
+          {
+            "rule_id": "STAGING_LIMIT_DEBUG_PORTS",
+            "description": "Limit debug ports in staging",
+            "protocol": "tcp",
+            "restricted_port_ranges": ["9090", "8000-8010"],
+            "severity": "low"
+          }
+        ],
+        "required_approvals": ["ops_team"]
+      },
+      "development": {
+        "description": "Relaxed rules for development environment",
+        "additional_allowances": [
+          {
+            "rule_id": "DEV_ALLOW_DEBUG_PORTS",
+            "description": "Allow debug ports in development",
+            "protocol": "tcp",
+            "allowed_port_ranges": ["8000-9000"],
+            "severity": "info"
+          }
+        ]
+      }
+    },
+    "compliance_actions": {
+      "violation_handling": {
+        "tag_non_compliant": true,
+        "tag_prefix": "COMPLIANCE_",
+        "backup_rules_before_remediation": true,
+        "create_dummy_rule": true,
+        "dummy_rule_config": {
+          "description": "ALL RULES REMOVED - Security Group failed compliance check. Contact Security Team. Violation: {violation_reason}",
+          "protocol": "tcp",
+          "from_port": 65535,
+          "to_port": 65535,
+          "cidr_blocks": ["127.0.0.1/32"]
+        }
+      },
+      "notification_settings": {
+        "send_immediate_alerts": true,
+        "alert_levels": {
+          "critical": "immediate",
+          "high": "within_1_hour",
+          "medium": "daily_digest",
+          "low": "weekly_digest"
+        }
+      },
+      "remediation_settings": {
+        "automatic_remediation": false,
+        "require_manual_approval": true,
+        "grace_period_hours": 24,
+        "escalation_after_hours": 72
+      }
+    },
+    "real_time_scanning": {
+      "description": "Configuration for real-time security group monitoring and response",
+      "enabled": true,
+      "detection_rules": {
+        "new_security_group_created": {
+          "enabled": true,
+          "immediate_scan": true,
+          "scan_within_seconds": 30,
+          "notify_on_violations": true,
+          "auto_remediate_critical": false
+        },
+        "risky_rule_added": {
+          "enabled": true,
+          "immediate_scan": true,
+          "scan_within_seconds": 15,
+          "notify_on_violations": true,
+          "auto_remediate_critical": true,
+          "critical_patterns": [
+            {
+              "pattern": "0.0.0.0/0",
+              "protocol": "*",
+              "description": "Any source IP on any protocol"
+            },
+            {
+              "pattern": "::/0",
+              "protocol": "*", 
+              "description": "Any IPv6 source on any protocol"
+            }
+          ]
+        },
+        "mass_operations_detected": {
+          "enabled": true,
+          "threshold_per_minute": 10,
+          "threshold_per_hour": 50,
+          "block_suspicious_users": false,
+          "notify_security_team": true,
+          "escalate_after_operations": 20
+        }
+      },
+      "remediation_settings": {
+        "emergency_remediation": {
+          "enabled": false,
+          "severity_threshold": "critical",
+          "backup_before_action": true,
+          "lockdown_mode": {
+            "remove_all_rules": true,
+            "add_dummy_rule": true,
+            "tag_as_emergency": true
+          }
+        },
+        "immediate_remediation": {
+          "enabled": false,
+          "severity_threshold": "high",
+          "grace_period_minutes": 5,
+          "backup_before_action": true
+        }
+      },
+      "notification_escalation": {
+        "immediate_alert_severities": ["critical"],
+        "hourly_digest_severities": ["high"],
+        "daily_digest_severities": ["medium", "low"],
+        "security_team_channels": [
+          "sns_topic_critical",
+          "slack_security_channel",
+          "email_security_team"
+        ]
+      }
+    }
+  },
+  "account_specific_overrides": {
+    "description": "Account-specific policy overrides",
+    "example_account_123456789012": {
+      "description": "Production account with stricter rules",
+      "inherit_global_rules": true,
+      "additional_prohibited_rules": [
+        {
+          "rule_id": "ACCOUNT_SPECIFIC_PROHIBITION",
+          "description": "Account-specific prohibition example",
+          "protocol": "tcp",
+          "port_range": "8080",
+          "source": "0.0.0.0/0",
+          "severity": "high"
+        }
+      ]
+    }
+  },
+  "exemptions": {
+    "description": "Temporary or permanent exemptions from compliance rules",
+    "security_group_exemptions": {
+      "sg-12345678": {
+        "reason": "Legacy system requiring special access",
+        "exempted_rules": ["PROHIBIT_ALL_TRAFFIC_SSH"],
+        "expiry_date": "2026-01-01T00:00:00Z",
+        "approved_by": "security_team",
+        "review_frequency": "quarterly"
+      }
+    },
+    "account_exemptions": {
+      "123456789012": {
+        "reason": "Sandbox account for security testing",
+        "exempted_rules": ["PROHIBIT_ALL_TRAFFIC_HTTP"],
+        "expiry_date": "permanent",
+        "approved_by": "security_team"
+      }
+    }
+  },
+  "reporting": {
+    "metrics_to_track": [
+      "total_security_groups_scanned",
+      "violations_by_severity",
+      "violations_by_rule_type",
+      "remediation_actions_taken",
+      "false_positives",
+      "exemptions_granted"
+    ],
+    "compliance_score_calculation": {
+      "total_possible_points": 100,
+      "deductions": {
+        "critical_violation": 25,
+        "high_violation": 10,
+        "medium_violation": 5,
+        "low_violation": 1
+      }
+    }
+  },
+  "accounts_config": [
+    {
+      "account_id": "123456789012",
+      "account_name": "production",
+      "enforcement_level": "enforce",
+      "description": "Production account with full enforcement",
+      "regions": ["us-east-1", "us-west-2"],
+      "cross_account_role_name": "SecurityGroupComplianceRole",
+      "actions": {
+        "tag_non_compliant": true,
+        "add_warning_rule": true,
+        "remove_violating_rules": true,
+        "send_notifications": true,
+        "backup_before_changes": true
+      },
+      "notification_settings": {
+        "immediate_alerts": true,
+        "weekly_reports": true,
+        "escalation_after_hours": 2
+      }
+    },
+    {
+      "account_id": "234567890123",
+      "account_name": "staging",
+      "enforcement_level": "warn",
+      "description": "Staging account with warning-only mode",
+      "regions": ["us-east-1"],
+      "cross_account_role_name": "SecurityGroupComplianceRole",
+      "actions": {
+        "tag_non_compliant": true,
+        "add_warning_rule": true,
+        "remove_violating_rules": false,
+        "send_notifications": true,
+        "backup_before_changes": false
+      },
+      "warning_settings": {
+        "grace_period_days": 7,
+        "escalation_schedule": ["24h", "72h", "7d"],
+        "auto_enforce_after_days": 14
+      }
+    },
+    {
+      "account_id": "345678901234",
+      "account_name": "development",
+      "enforcement_level": "monitor",
+      "description": "Development account with monitoring only",
+      "regions": ["us-east-1"],
+      "cross_account_role_name": "SecurityGroupComplianceRole",
+      "actions": {
+        "tag_non_compliant": true,
+        "add_warning_rule": false,
+        "remove_violating_rules": false,
+        "send_notifications": false,
+        "backup_before_changes": false
+      },
+      "monitoring_settings": {
+        "report_frequency": "weekly",
+        "metrics_only": true
+      }
+    },
+    {
+      "account_id": "456789012345",
+      "account_name": "sandbox",
+      "enforcement_level": "disabled",
+      "description": "Sandbox account - compliance monitoring disabled",
+      "regions": ["us-east-1"],
+      "actions": {
+        "tag_non_compliant": false,
+        "add_warning_rule": false,
+        "remove_violating_rules": false,
+        "send_notifications": false,
+        "backup_before_changes": false
+      }
+    }
+  ]
+}
