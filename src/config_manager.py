@@ -6,7 +6,7 @@ Handles loading and caching of security policies and configuration
 import json
 import logging
 import boto3
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from datetime import datetime, timezone
 from botocore.exceptions import ClientError
 
@@ -338,3 +338,47 @@ class ConfigManager:
         except:
             self.logger.warning(f"Invalid expiry date format: {expiry_date}")
             return False
+
+    def get_enforced_accounts(self) -> List[str]:
+        """Return list of account IDs that should be enforced."""
+        try:
+            data = self._load_s3_json('config/enforced_accounts.json')
+            return [str(a) for a in data.get('accounts', [])]
+        except ConfigurationError:
+            self.logger.info("Enforced accounts file not found")
+            return []
+        except Exception as e:
+            self.logger.warning(f"Could not load enforced accounts: {e}")
+            return []
+
+    def get_monitored_accounts(self) -> List[str]:
+        """Return list of account IDs that should be monitored."""
+        try:
+            data = self._load_s3_json('config/monitored_accounts.json')
+            return [str(a) for a in data.get('accounts', [])]
+        except ConfigurationError:
+            self.logger.info("Monitored accounts file not found")
+            return []
+        except Exception as e:
+            self.logger.warning(f"Could not load monitored accounts: {e}")
+            return []
+
+    def get_account_mode(self, account_id: str) -> str:
+        """Return enforcement mode for a given account."""
+        enforced = set(self.get_enforced_accounts())
+        monitored = set(self.get_monitored_accounts())
+        if account_id in enforced:
+            return 'enforce'
+        if account_id in monitored:
+            return 'monitor'
+        return 'default'
+
+    def load_framework_settings(self) -> Dict[str, Any]:
+        """Load additional framework settings."""
+        try:
+            return self._load_s3_json('config/framework_settings.json')
+        except ConfigurationError:
+            return {}
+        except Exception as e:
+            self.logger.warning(f"Could not load framework settings: {e}")
+            return {}

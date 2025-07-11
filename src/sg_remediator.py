@@ -40,9 +40,10 @@ class SecurityGroupRemediator:
         self.s3_bucket = os.environ.get('S3_BUCKET_NAME', '')
         self.sns_topic_arn = os.environ.get('SNS_TOPIC_ARN', '')
         self.dry_run_mode = os.environ.get('DRY_RUN_MODE', 'true').lower() == 'true'
-        
+
         # Load initial config
         self.config = self.config_manager.load_framework_config()
+        self.settings = self.config_manager.load_framework_settings()
     
     def remediate_violations(
         self, 
@@ -168,27 +169,33 @@ class SecurityGroupRemediator:
             
             self.logger.info(f"Starting remediation for security group {sg_id}")
             
+            # Determine enforcement mode for account
+            mode = self.config_manager.get_account_mode(account_id)
+
             # Apply compliance tags
             self._apply_compliance_tags(sg_id, violations)
-            
-            # Remove all inbound rules
-            self._remove_all_inbound_rules(sg_id, security_group)
-            
-            # Remove all outbound rules (except default)
-            self._remove_all_outbound_rules(sg_id, security_group)
-            
-            # Add dummy rule with violation information
-            self._add_dummy_violation_rule(sg_id, violations, policies)
-            
+
+            actions = ['applied_compliance_tags']
+
+            if mode != 'monitor' and self.settings.get('remove_rules', True):
+                # Remove all inbound rules
+                self._remove_all_inbound_rules(sg_id, security_group)
+
+                # Remove all outbound rules (except default)
+                self._remove_all_outbound_rules(sg_id, security_group)
+                actions.extend(['removed_all_inbound_rules', 'removed_all_outbound_rules'])
+
+                if self.settings.get('add_dummy_rule', True):
+                    # Add dummy rule with violation information
+                    self._add_dummy_violation_rule(sg_id, violations, policies)
+                    actions.append('added_dummy_violation_rule')
+
+            status = 'success' if mode != 'monitor' else 'monitored'
+
             return {
                 'security_group_id': sg_id,
-                'status': 'success',
-                'actions_taken': [
-                    'applied_compliance_tags',
-                    'removed_all_inbound_rules',
-                    'removed_all_outbound_rules',
-                    'added_dummy_violation_rule'
-                ],
+                'status': status,
+                'actions_taken': actions,
                 'violations_count': len(violations),
                 'remediation_timestamp': datetime.now(timezone.utc).isoformat()
             }
@@ -360,9 +367,12 @@ class SecurityGroupRemediator:
         """Apply compliance tags to the security group"""
         try:
             # Prepare tags
+            status_key = self.settings.get('non_compliant_tag_key', 'COMPLIANCE_STATUS')
+            reason_key = self.settings.get('violation_reason_tag_key', 'COMPLIANCE_VIOLATION_REASON')
+
             compliance_tags = [
                 {
-                    'Key': 'COMPLIANCE_STATUS',
+                    'Key': status_key,
                     'Value': 'NON_COMPLIANT'
                 },
                 {
@@ -378,7 +388,7 @@ class SecurityGroupRemediator:
                     'Value': 'true'
                 },
                 {
-                    'Key': 'COMPLIANCE_VIOLATION_REASON',
+                    'Key': reason_key,
                     'Value': self._get_primary_violation_reason(violations)
                 }
             ]
@@ -461,6 +471,9 @@ class SecurityGroupRemediator:
             violation_reason = '; '.join(list(set(violation_reasons))[:3])  # Limit to first 3 unique reasons
             
             description = dummy_rule_config['description'].format(violation_reason=violation_reason)
+            prefix = self.settings.get('dummy_rule_prefix')
+            if prefix:
+                description = f"{prefix} {description}"
             
             # Truncate description if too long (EC2 limit is 255 characters)
             if len(description) > 255:

@@ -1,0 +1,6 @@
+{
+  "non_compliant_tag_key": "COMPLIANCE_STATUS",
+  "violation_reason_tag_key": "COMPLIANCE_VIOLATION_REASON",
+  "remove_rules": true,
+  "add_dummy_rule": true
+}

@@ -560,6 +560,34 @@ Configure different rules per account:
 }
 ```
 
+### Enforcement and Monitoring Lists
+
+Define which accounts are automatically enforced or only monitored using two JSON files stored in the `config` folder:
+
+```json
+// config/enforced_accounts.json
+{ "accounts": ["111122223333", "444455556666"] }
+```
+
+```json
+// config/monitored_accounts.json
+{ "accounts": ["777788889999"] }
+```
+
+If an account appears in both lists, enforcement mode takes precedence. Additional behaviour can be tuned via `framework_settings.json`.
+
+```json
+// config/framework_settings.json
+{
+  "non_compliant_tag_key": "COMPLIANCE_STATUS",
+  "violation_reason_tag_key": "COMPLIANCE_VIOLATION_REASON",
+  "remove_rules": true,
+  "add_dummy_rule": true
+}
+```
+
+These settings allow you to change tag keys and toggle rule removal or dummy rule creation without modifying the code.
+
 ### Custom Notifications
 
 Add additional SNS topics:
