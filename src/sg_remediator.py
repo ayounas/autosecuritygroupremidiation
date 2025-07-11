@@ -12,6 +12,7 @@ from botocore.exceptions import ClientError
 
 from utils.exceptions import ComplianceError, AWSServiceError, PolicyViolation
 from config_manager import ConfigManager
+from utils.helpers import get_ec2_client
 
 class SecurityGroupRemediator:
     """Handles remediation of security group compliance violations"""
@@ -635,40 +636,20 @@ class SecurityGroupRemediator:
             self.logger.error(f"Failed to send remediation notifications: {str(e)}")
     
     def _assume_account_role(self, account_id: str) -> None:
-        """Assume cross-account role for remediation"""
+        """Assume cross-account role and initialize the EC2 client."""
         try:
-            # Check if we need to assume a role for this account
-            current_account = self.sts_client.get_caller_identity()['Account']
-            
-            if account_id == current_account:
-                # Same account, use current credentials
-                self.ec2_client = boto3.client('ec2')
-                return
-            
-            # Assume cross-account role
             if not self.cross_account_role_name:
-                raise ComplianceError("Cross-account role name not configured")
-            
-            role_arn = f"arn:aws:iam::{account_id}:role/{self.cross_account_role_name}"
-            
-            response = self.sts_client.assume_role(
-                RoleArn=role_arn,
-                RoleSessionName=f"ComplianceRemediator-{account_id}",
-                ExternalId=self.external_id
-            )
-            
-            credentials = response['Credentials']
-            
-            # Create EC2 client with assumed role credentials
-            self.ec2_client = boto3.client(
-                'ec2',
-                aws_access_key_id=credentials['AccessKeyId'],
-                aws_secret_access_key=credentials['SecretAccessKey'],
-                aws_session_token=credentials['SessionToken']
-            )
-            
+                self.ec2_client = get_ec2_client(account_id, 'us-east-1')
+            else:
+                session_name = f"ComplianceRemediator-{account_id}"
+                self.ec2_client = get_ec2_client(
+                    account_id,
+                    'us-east-1',
+                    role_name=self.cross_account_role_name,
+                    session_name=session_name,
+                    external_id=self.external_id,
+                )
             self.logger.info(f"Successfully assumed role for remediation in account {account_id}")
-            
         except Exception as e:
             self.logger.error(f"Error assuming role for account {account_id}: {e}")
             raise AWSServiceError(f"Failed to assume role: {e}")

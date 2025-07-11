@@ -4,6 +4,7 @@ Utility functions for the Security Group Compliance Framework
 
 import json
 import re
+import boto3
 from typing import Dict, Any, List, Optional
 from ipaddress import ip_network, AddressValueError
 
@@ -347,3 +348,33 @@ def validate_security_group_id(sg_id: str) -> bool:
     """
     # Security group IDs start with 'sg-' followed by 8 or 17 hexadecimal characters
     return bool(re.match(r'^sg-[0-9a-f]{8}([0-9a-f]{9})?$', sg_id))
+
+def assume_role(account_id: str, role_name: str, session_name: str, external_id: str = "", sts_client=None) -> Dict[str, Any]:
+    """Assume an IAM role and return temporary credentials."""
+    if sts_client is None:
+        sts_client = boto3.client('sts')
+    params = {
+        'RoleArn': f"arn:aws:iam::{account_id}:role/{role_name}",
+        'RoleSessionName': session_name,
+    }
+    if external_id:
+        params['ExternalId'] = external_id
+    response = sts_client.assume_role(**params)
+    return response['Credentials']
+
+
+def get_ec2_client(account_id: str, region: str, role_name: str = "", session_name: str = "", external_id: str = ""):
+    """Return an EC2 client for the given account and region."""
+    sts_client = boto3.client('sts')
+    current_account = sts_client.get_caller_identity()['Account']
+    if account_id == current_account or not role_name:
+        return boto3.client('ec2', region_name=region)
+
+    credentials = assume_role(account_id, role_name, session_name or f"EC2Access-{account_id}", external_id, sts_client)
+    return boto3.client(
+        'ec2',
+        region_name=region,
+        aws_access_key_id=credentials['AccessKeyId'],
+        aws_secret_access_key=credentials['SecretAccessKey'],
+        aws_session_token=credentials['SessionToken']
+    )
