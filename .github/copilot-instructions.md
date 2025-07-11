@@ -55,6 +55,9 @@ This is a Terraform-based AWS infrastructure project for automatically remediati
 - Use KMS keys for encryption with proper key rotation
 - Implement VPC flow logs for network monitoring
 - Enable CloudTrail for all API calls
+- Ensure no IAM policies documents allow "*" as a statement's resource for restrictable actions
+- Ensure IAM policies does not allow write access without constraints
+
 
 ## Error Handling & Monitoring
 - Implement comprehensive error handling in Lambda functions

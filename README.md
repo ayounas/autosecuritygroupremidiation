@@ -14,6 +14,13 @@ This framework provides centralized security group compliance management with th
 
 ## Architecture
 
+For detailed architecture diagrams and technical documentation, see:
+- 📋 **[Complete Architecture Documentation](docs/ARCHITECTURE.md)** - Comprehensive solution architecture with Mermaid diagrams
+- 🔄 **[Operational Flows](docs/OPERATIONAL_FLOWS.md)** - Deployment, monitoring, and operational procedures
+- 🔒 **[IAM Security Documentation](docs/IAM_POLICY_SECURITY_FIXES.md)** - Security compliance and policy details
+
+### High-Level Overview
+
 ```
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
 │   Config Store  │────│  Lambda Function │────│   CloudWatch    │

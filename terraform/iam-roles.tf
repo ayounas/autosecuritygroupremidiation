@@ -3,7 +3,7 @@
 # Lambda execution role
 resource "aws_iam_role" "lambda_execution_role" {
   name = "${local.resource_prefix}-lambda-execution-role"
-  
+
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
@@ -16,7 +16,7 @@ resource "aws_iam_role" "lambda_execution_role" {
       }
     ]
   })
-  
+
   tags = local.common_tags
 }
 
@@ -30,27 +30,75 @@ resource "aws_iam_role_policy_attachment" "lambda_basic_execution" {
 resource "aws_iam_role_policy" "compliance_scanner_policy" {
   name = "${local.resource_prefix}-compliance-scanner-policy"
   role = aws_iam_role.lambda_execution_role.id
-  
+
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "EC2SecurityGroupPermissions"
+        Sid    = "EC2SecurityGroupReadPermissions"
         Effect = "Allow"
         Action = [
           "ec2:DescribeSecurityGroups",
-          "ec2:DescribeSecurityGroupRules",
-          "ec2:AuthorizeSecurityGroupIngress",
-          "ec2:AuthorizeSecurityGroupEgress",
-          "ec2:RevokeSecurityGroupIngress",
-          "ec2:RevokeSecurityGroupEgress",
-          "ec2:CreateTags",
-          "ec2:DeleteTags",
+          "ec2:DescribeSecurityGroupRules"
+        ]
+        Resource = [
+          "arn:aws:ec2:*:${data.aws_caller_identity.current.account_id}:security-group/*"
+        ]
+        Condition = {
+          StringEquals = {
+            "aws:RequestedRegion" = [var.aws_region]
+          }
+        }
+      },
+      {
+        Sid    = "EC2GeneralReadOnlyPermissions"
+        Effect = "Allow"
+        Action = [
           "ec2:DescribeTags",
           "ec2:DescribeVpcs",
           "ec2:DescribeNetworkInterfaces"
         ]
         Resource = "*"
+      },
+      {
+        Sid    = "EC2SecurityGroupWritePermissions"
+        Effect = "Allow"
+        Action = [
+          "ec2:AuthorizeSecurityGroupIngress",
+          "ec2:AuthorizeSecurityGroupEgress",
+          "ec2:RevokeSecurityGroupIngress",
+          "ec2:RevokeSecurityGroupEgress"
+        ]
+        Resource = [
+          "arn:aws:ec2:*:${data.aws_caller_identity.current.account_id}:security-group/*"
+        ]
+        Condition = {
+          StringEquals = {
+            "aws:RequestedRegion" = [var.aws_region]
+          }
+        }
+      },
+      {
+        Sid    = "EC2TaggingPermissions"
+        Effect = "Allow"
+        Action = [
+          "ec2:CreateTags",
+          "ec2:DeleteTags"
+        ]
+        Resource = [
+          "arn:aws:ec2:*:${data.aws_caller_identity.current.account_id}:security-group/*"
+        ]
+        Condition = {
+          StringEquals = {
+            "aws:RequestedRegion" = [var.aws_region]
+            "ec2:CreateAction" = [
+              "AuthorizeSecurityGroupIngress",
+              "AuthorizeSecurityGroupEgress",
+              "RevokeSecurityGroupIngress",
+              "RevokeSecurityGroupEgress"
+            ]
+          }
+        }
       },
       {
         Sid    = "CrossAccountAssumeRole"
@@ -134,7 +182,7 @@ resource "aws_iam_role_policy" "compliance_scanner_policy" {
 resource "aws_iam_role" "cross_account_role" {
   count = length(var.target_accounts) > 0 ? 1 : 0
   name  = "${local.resource_prefix}-cross-account-role"
-  
+
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
@@ -152,7 +200,7 @@ resource "aws_iam_role" "cross_account_role" {
       }
     ]
   })
-  
+
   tags = local.common_tags
 }
 
@@ -161,27 +209,75 @@ resource "aws_iam_role_policy" "cross_account_policy" {
   count = length(var.target_accounts) > 0 ? 1 : 0
   name  = "${local.resource_prefix}-cross-account-policy"
   role  = aws_iam_role.cross_account_role[0].id
-  
+
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "SecurityGroupReadWritePermissions"
+        Sid    = "SecurityGroupSpecificReadPermissions"
         Effect = "Allow"
         Action = [
           "ec2:DescribeSecurityGroups",
-          "ec2:DescribeSecurityGroupRules",
-          "ec2:AuthorizeSecurityGroupIngress",
-          "ec2:AuthorizeSecurityGroupEgress",
-          "ec2:RevokeSecurityGroupIngress",
-          "ec2:RevokeSecurityGroupEgress",
-          "ec2:CreateTags",
-          "ec2:DeleteTags",
+          "ec2:DescribeSecurityGroupRules"
+        ]
+        Resource = [
+          "arn:aws:ec2:*:*:security-group/*"
+        ]
+        Condition = {
+          StringEquals = {
+            "aws:RequestedRegion" = [var.aws_region]
+          }
+        }
+      },
+      {
+        Sid    = "GeneralReadOnlyPermissions"
+        Effect = "Allow"
+        Action = [
           "ec2:DescribeTags",
           "ec2:DescribeVpcs",
           "ec2:DescribeNetworkInterfaces"
         ]
         Resource = "*"
+      },
+      {
+        Sid    = "SecurityGroupWritePermissions"
+        Effect = "Allow"
+        Action = [
+          "ec2:AuthorizeSecurityGroupIngress",
+          "ec2:AuthorizeSecurityGroupEgress",
+          "ec2:RevokeSecurityGroupIngress",
+          "ec2:RevokeSecurityGroupEgress"
+        ]
+        Resource = [
+          "arn:aws:ec2:*:*:security-group/*"
+        ]
+        Condition = {
+          StringEquals = {
+            "aws:RequestedRegion" = [var.aws_region]
+          }
+        }
+      },
+      {
+        Sid    = "SecurityGroupTaggingPermissions"
+        Effect = "Allow"
+        Action = [
+          "ec2:CreateTags",
+          "ec2:DeleteTags"
+        ]
+        Resource = [
+          "arn:aws:ec2:*:*:security-group/*"
+        ]
+        Condition = {
+          StringEquals = {
+            "aws:RequestedRegion" = [var.aws_region]
+            "ec2:CreateAction" = [
+              "AuthorizeSecurityGroupIngress",
+              "AuthorizeSecurityGroupEgress",
+              "RevokeSecurityGroupIngress",
+              "RevokeSecurityGroupEgress"
+            ]
+          }
+        }
       }
     ]
   })
@@ -190,7 +286,7 @@ resource "aws_iam_role_policy" "cross_account_policy" {
 # EventBridge execution role
 resource "aws_iam_role" "eventbridge_role" {
   name = "${local.resource_prefix}-eventbridge-role"
-  
+
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
@@ -203,7 +299,7 @@ resource "aws_iam_role" "eventbridge_role" {
       }
     ]
   })
-  
+
   tags = local.common_tags
 }
 
@@ -211,7 +307,7 @@ resource "aws_iam_role" "eventbridge_role" {
 resource "aws_iam_role_policy" "eventbridge_lambda_policy" {
   name = "${local.resource_prefix}-eventbridge-lambda-policy"
   role = aws_iam_role.eventbridge_role.id
-  
+
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
