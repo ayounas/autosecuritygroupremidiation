@@ -17,6 +17,7 @@ from sg_remediator import SecurityGroupRemediator
 from utils.logger import setup_logger
 from utils.metrics import MetricsCollector
 from utils.exceptions import ComplianceError
+from utils.helpers import get_ec2_client, assume_role
 
 # Setup module-level logger
 logger = setup_logger('compliance_scanner', os.environ.get('LOG_LEVEL', 'INFO'))
@@ -356,34 +357,24 @@ class SecurityGroupComplianceHandler:
     def _assume_role(self, account_id: str) -> Dict[str, Any]:
         """Assume cross-account role."""
         try:
-            role_arn = f"arn:aws:iam::{account_id}:role/{self.cross_account_role_name}"
-            
-            response = self.sts_client.assume_role(
-                RoleArn=role_arn,
-                RoleSessionName=f"SecurityGroupCompliance-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+            session_name = f"SecurityGroupCompliance-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+            return assume_role(
+                account_id,
+                self.cross_account_role_name,
+                session_name,
             )
-            
-            return response['Credentials']
-            
         except Exception as e:
             logger.error(f"Error assuming role in account {account_id}: {e}")
             raise
     
     def _get_ec2_client(self, account_id: str, region: str):
         """Get EC2 client for the specified account and region."""
-        current_account = self.sts_client.get_caller_identity()['Account']
-        
-        if account_id != current_account:
-            credentials = self._assume_role(account_id)
-            return boto3.client(
-                'ec2',
-                region_name=region,
-                aws_access_key_id=credentials['AccessKeyId'],
-                aws_secret_access_key=credentials['SecretAccessKey'],
-                aws_session_token=credentials['SessionToken']
-            )
-        else:
-            return boto3.client('ec2', region_name=region)
+        return get_ec2_client(
+            account_id,
+            region,
+            role_name=self.cross_account_role_name,
+            session_name=f"SecurityGroupCompliance-{account_id}",
+        )
     
     def _scan_region(self, account_id: str, region: str, assumed_role_credentials: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         """Scan all security groups in a region."""
